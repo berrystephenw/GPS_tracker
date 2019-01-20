@@ -1,0 +1,8 @@
+{
+    "extensions.ignoreRecommendations": true,
+    "files.associations": {
+        "*.ino": "cpp"
+    },
+    "particle.firmwareVersion": "0.8.0-rc.27",
+    "editor.fontSize": 16
+}
