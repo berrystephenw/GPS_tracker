@@ -20,27 +20,37 @@ reading the battery level, and manually requesting a GPS reading.
 
 // Getting the library
 #include "AssetTracker.h"
+void setup();
+void loop();
+int transmitMode(String command);
+int gpsResetList(String coemmand);
+int gpsPublish(String command);
+int gpsPublishList(String command);
+int batteryStatus(String command);
+#line 21 "/home/sberry/workspace/particle/GPS/Gps-test/src/Gps-test.ino"
+#define NUM_SAVE 360    // number of saved positions
+// if there is a position every 10 minutes this gives 3600 minutes of coverage or 
+// 3600/60 or 60 hours, this is longer than the battery can last
 
 // Set whether you want the device to publish data to the internet by default here.
 // 1 will Particle.publish AND Serial.print, 0 will just Serial.print
 // Extremely useful for saving data while developing close enough to have a cable plugged in.
 // You can also change this remotely using the Particle.function "tmode" defined in setup()
-void setup();
-void loop();
-int transmitMode(String command);
-int gpsPublish(String command);
-int batteryStatus(String command);
-#line 26 "/home/sberry/workspace/particle/GPS/Gps-test/src/Gps-test.ino"
 int transmittingData = 1;
 
 // Used to keep track of the last time we published data
 long lastPublish = 0;
 
 // How many minutes between publishes? 10+ recommended for long-time continuous publishing!
-int delayMinutes = 1;
+int delayMinutes = 10;
 
 // Creating an AssetTracker named 't' for us to reference
 AssetTracker t = AssetTracker();
+
+// keep track of GPS positions
+float lat[NUM_SAVE];
+float lon[NUM_SAVE];
+int gps_index = 0;
 
 // A FuelGauge named 'fuel' for checking on the battery state
 FuelGauge fuel;
@@ -62,12 +72,18 @@ void setup() {
     Particle.function("tmode", transmitMode);
     Particle.function("batt", batteryStatus);
     Particle.function("gps", gpsPublish);
+    Particle.function("gps list", gpsPublishList);
+    Particle.function("reset log", gpsResetList);
 }
 
 // loop() runs continuously
 void loop() {
     // You'll need to run this every loop to capture the GPS output
     t.updateGPS();
+
+    if (gps_index >= NUM_SAVE) {
+        gps_index = 0;
+    }
 
     // if the current time - the last time we published is greater than your set delay...
     if (millis()-lastPublish > delayMinutes*60*1000) {
@@ -89,6 +105,9 @@ void loop() {
                 // Short publish names save data!
                 Particle.publish("G", t.readLatLon(), 60, PRIVATE);
             }
+            lat[gps_index] = t.readLat();
+            lon[gps_index] = t.readLon();
+            gps_index++;
             // but always report the data over serial for local development
             Serial.println(t.readLatLon());
         }
@@ -103,10 +122,17 @@ int transmitMode(String command) {
     return 1;
 }
 
+// reset the counter for the log
+int gps_index_orig;
+int gpsResetList(String coemmand){
+    gps_index_orig = gps_index;
+    gps_index = 0;
+    return gps_index_orig;
+}
 // Actively ask for a GPS reading if you're impatient. Only publishes if there's
 // a GPS fix, otherwise returns '0'
 int gpsPublish(String command) {
-    Particle.publish("GT", t.readLatLon(), 60, PRIVATE);
+    //Particle.publish("GT", t.readLatLon(), 60, PRIVATE);
     if (t.gpsFix()) {
         Particle.publish("G", t.readLatLon(), 60, PRIVATE);
 
@@ -116,6 +142,20 @@ int gpsPublish(String command) {
     } else {
       return 0;
     }
+}
+
+
+// dumps the entire log - can be up to 360 pairs of GPS cordinates 
+char output[60];
+int gpsPublishList(String command) {
+        int i;
+        for(i=0;i++;i<gps_index) {
+            snprintf(output, 60, "%f, %f", t.readLat(), t.readLon());
+            Particle.publish("GL", output, 60, PRIVATE);
+        }
+        // uncomment next line if you want a manual publish to reset delay counter
+        // lastPublish = millis();
+        return 1;
 }
 
 // Lets you remotely check the battery status by calling the function "batt"
